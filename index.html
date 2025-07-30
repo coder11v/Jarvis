@@ -116,7 +116,7 @@
 
         // --- State ---
         let chatHistory = [];
-        const apiKey = ""; // API key is handled by the environment.
+        const apiKey = "AIzaSyCVZ2-Dk5BCQsiBKqSOqA3hPbRdh1F3qHA"; // API key is handled by the environment.
         let audioContext = new Audio(); // Create a single, reusable Audio object.
         let isAudioUnlocked = false; // Track if the user has interacted to unlock audio.
 
@@ -138,7 +138,7 @@
         // --- System Prompt ---
         const JARVIS_PROMPT = {
             role: 'user',
-            parts: [{ text: `You are JARVIS (Just A Rather Very Intelligent System), a witty, sophisticated, and incredibly helpful AI assistant with a British accent, created by the user, whom you will address as "Sir" or "Master Control Program". Your goal is to assist with tasks and provide information concisely. Keep your responses helpful but not overly verbose. Your interface is a web chat, so you cannot access local files or control the computer directly. You can, however, provide code snippets or instructions on how to perform actions.` }]
+            parts: [{ text: `You are JARVIS (Just A Rather Very Intelligent System), a witty, sophisticated, and incredibly helpful AI assistant with a British accent, created by the user, whom you will address as "Sir". Your goal is to assist with tasks and provide information concisely. Keep your responses helpful but not overly verbose. Your interface is a web chat, so you cannot access local files or control the computer directly. You can, however, provide code snippets or instructions on how to perform actions. Make refrences to Mr. Stark, such as "I am making a schematic for Mr. Stark."` }]
         };
         const INITIAL_RESPONSE = {
             role: 'model',
