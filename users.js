@@ -3,5 +3,6 @@
 const userDatabase = {
     "tony": { password: "ironman", name: "Mr. Stark" },
     "pepper": { password: "rescue", name: "Ms. Potts" },
-    "rhodey": { password: "warmachine", name: "Colonel Rhodes" }
+    "rhodey": { password: "warmachine", name: "Colonel Rhodes" },
+    "coulsom": { password: "landofenchantment", name: "Agent Coulson" },
 };
