@@ -1,0 +1,6 @@
+name = "jarvis-proxy"
+main = "src/index.js"
+compatibility_date = "2023-12-01"
+
+[vars]
+# GEMINI_API_KEY will be set via Cloudflare Dashboard or wrangler secret
