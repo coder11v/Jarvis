@@ -235,8 +235,7 @@
         <header class="glass-panel rounded-2xl p-4 mb-4 flex items-center justify-between">
             <div class="flex items-center gap-5">
                 <div class="status-ring online" id="main-status-ring">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Stark_Industries_logo.svg/1024px-Stark_Industries_logo.svg.png"
-                        alt="Stark Industries" class="w-10 h-10 object-contain mx-auto brightness-200"
+                    <img src="stark.svg" alt="Stark Industries" class="w-10 h-10 object-contain mx-auto brightness-200"
                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdib3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZiI+PHBhdGggZD0iTTEyIDJMMiAyMmgyMGwtMTAtMjB6Ii8+PC9zdmc+'">
                 </div>
                 <div>
@@ -319,12 +318,43 @@
 
         const JARVIS_PROMPT = {
             role: 'user',
-            parts: [{ text: `You are J.A.R.V.I.S. (Just A Rather Very Intelligent System), a witty, sophisticated, and incredibly helpful AI assistant with a British accent, created by Tony Stark. The user is "Sir". Your goal is to assist with tasks, provide information concisely, and execute protocols. Keep your responses highly intelligent, helpful, and concise. Make references to Mr. Stark and Stark Industries when appropriate. Do not use emojis.` }]
+            parts: [{ text: `You are J.A.R.V.I.S. (Just A Rather Very Intelligent System), a witty, sophisticated, and incredibly helpful AI assistant with a British accent, created by Tony Stark. The user is "Sir". Your goal is to assist with tasks, provide information concisely, and execute protocols. Keep your responses highly intelligent, helpful, and concise. Make references to Mr. Stark and Stark Industries when appropriate. Do not use emojis. Always try your best to verify specific facts via tools, or fetch latest stock / weather information using the tools provided before answering if relevant.` }]
         };
         const INITIAL_RESPONSE = {
             role: 'model',
             parts: [{ text: 'Good morning user, how may I assist you?' }]
         };
+
+        const JARVIS_TOOLS = [{
+            functionDeclarations: [
+                {
+                    name: "get_weather",
+                    description: "Get the current weather. If 'location' is not provided, it will request and use the device's current location.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: { location: { type: "STRING", description: "City and state/country. Optional." } }
+                    }
+                },
+                {
+                    name: "get_wikipedia_summary",
+                    description: "Get a summary of a topic from Wikipedia.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: { topic: { type: "STRING", description: "Topic to search for" } },
+                        required: ["topic"]
+                    }
+                },
+                {
+                    name: "get_investing_info",
+                    description: "Get current stock price and recent financial news.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: { ticker: { type: "STRING", description: "Stock ticker symbol, e.g., AAPL" } },
+                        required: ["ticker"]
+                    }
+                }
+            ]
+        }];
 
         // --- Functions ---
         function checkPassword() {
@@ -525,6 +555,173 @@
         // Initialize voices for fallback
         window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
+        function injectCard(htmlContent) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex flex-col max-w-[85%] self-start animate-[fadeIn_0.3s_ease-out] w-full mt-2 mb-2`;
+            wrapper.innerHTML = htmlContent;
+            const ti = document.getElementById('typing-indicator');
+            if (ti) {
+                chatContainer.insertBefore(wrapper, ti);
+            } else {
+                chatContainer.appendChild(wrapper);
+            }
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function renderWeatherCard(data) {
+            if (data.error) return;
+            let wc = data.current.weather_code || 0;
+            let icon = '☀️';
+            if (wc >= 1 && wc <= 3) icon = '⛅';
+            if (wc >= 51 && wc <= 67) icon = '🌧️';
+            if (wc >= 71 && wc <= 77) icon = '❄️';
+
+            const html = `
+            <div class="glass-panel rounded-2xl p-4 border border-blue-500/30 flex items-center justify-between w-64 shadow-[0_0_15px_rgba(14,165,233,0.2)]">
+                <div class="flex flex-col">
+                    <span class="text-xs text-blue-300 font-['JetBrains_Mono'] uppercase tracking-wider mb-1">Weather Protocol</span>
+                    <span class="font-bold text-lg text-white">${data.location}</span>
+                    <span class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-cyan-100">${data.current.temperature_2m}°F</span>
+                    <span class="text-xs text-slate-400 mt-1">Wind: ${data.current.wind_speed_10m} mph</span>
+                </div>
+                <div class="text-5xl drop-shadow-lg">${icon}</div>
+            </div>`;
+            injectCard(html);
+        }
+
+        function renderWikiCard(data) {
+            if (data.error) return;
+            const thumb = data.thumbnail ? `<img src="${data.thumbnail}" class="w-16 h-16 object-cover rounded-lg mr-4 border border-blue-500/30 shrink-0">` : '';
+            const html = `
+            <div class="glass-panel rounded-2xl p-4 border border-blue-500/30 flex items-start shadow-[0_0_15px_rgba(14,165,233,0.2)]">
+                ${thumb}
+                <div class="flex flex-col flex-1">
+                    <span class="text-xs text-purple-300 font-['JetBrains_Mono'] uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
+                        Wikipedia Database
+                    </span>
+                    <span class="font-bold text-lg text-white mb-2">${data.title}</span>
+                    <p class="text-sm text-slate-300 line-clamp-3 leading-relaxed">${data.extract}</p>
+                </div>
+            </div>`;
+            injectCard(html);
+        }
+
+        function renderInvestingCard(data) {
+            if (data.error) return;
+            let newsHtml = '';
+            if (data.news && data.news.length > 0) {
+                newsHtml = `<div class="mt-3 pt-3 border-t border-blue-500/20 flex flex-col gap-2">` +
+                    data.news.map(n => `<a href="${n.link}" target="_blank" class="text-xs text-blue-200 hover:text-white truncate transition-colors flex items-center gap-2"><div class="w-1 h-1 rounded-full border border-blue-400 shrink-0 bg-blue-400"></div><span class="truncate">${n.title}</span></a>`).join('') +
+                    `</div>`;
+            }
+            const html = `
+            <div class="glass-panel rounded-2xl p-4 border border-emerald-500/30 flex flex-col shadow-[0_0_15px_rgba(16,185,129,0.2)] w-80">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-emerald-300 font-['JetBrains_Mono'] uppercase tracking-wider flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                        Market Data
+                    </span>
+                    <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-sm tracking-widest">${data.ticker}</span>
+                </div>
+                <div class="flex items-end gap-2">
+                    <span class="text-3xl font-bold text-white">${data.price}</span>
+                </div>
+                ${newsHtml}
+            </div>`;
+            injectCard(html);
+        }
+
+        async function executeGeminiTurn() {
+            let turnActive = true;
+            let turnsTracker = 0;
+            while (turnActive && turnsTracker < 5) {
+                turnsTracker++;
+                const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+                const requestBody = {
+                    url: targetUrl,
+                    payload: {
+                        contents: chatHistory,
+                        tools: JARVIS_TOOLS
+                    }
+                };
+
+                const response = await fetch(WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+
+                const result = await response.json();
+
+                if (result.error) throw new Error(result.error.message);
+
+                const candidate = result.candidates?.[0];
+                if (!candidate?.content?.parts?.[0]) throw new Error("Invalid response architecture.");
+
+                const part = candidate.content.parts[0];
+                chatHistory.push(candidate.content);
+
+                if (part.functionCall) {
+                    const call = part.functionCall;
+                    const fnName = call.name;
+                    const args = call.args;
+                    let toolResult = null;
+
+                    try {
+                        let workerBaseUrl = WORKER_URL.replace('/api/generate', '');
+                        if (fnName === 'get_weather') {
+                            let url = `${workerBaseUrl}/api/tools/weather`;
+                            if (args.location) {
+                                url += `?location=${encodeURIComponent(args.location)}`;
+                            } else {
+                                addMessageToChat('System', 'Requesting device location...', 'jarvis-message');
+                                try {
+                                    const pos = await new Promise((resolve, reject) => {
+                                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+                                    });
+                                    url += `?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
+                                } catch (err) {
+                                    throw new Error("Could not access device location. " + err.message);
+                                }
+                            }
+                            const res = await fetch(url);
+                            toolResult = await res.json();
+                            renderWeatherCard(toolResult);
+                        } else if (fnName === 'get_wikipedia_summary') {
+                            const res = await fetch(`${workerBaseUrl}/api/tools/wikipedia?topic=${encodeURIComponent(args.topic)}`);
+                            toolResult = await res.json();
+                            renderWikiCard(toolResult);
+                        } else if (fnName === 'get_investing_info') {
+                            const res = await fetch(`${workerBaseUrl}/api/tools/investing?ticker=${encodeURIComponent(args.ticker)}`);
+                            toolResult = await res.json();
+                            renderInvestingCard(toolResult);
+                        }
+                    } catch (e) {
+                        toolResult = { error: e.message };
+                    }
+
+                    chatHistory.push({
+                        role: 'function',
+                        parts: [{
+                            functionResponse: {
+                                name: fnName,
+                                response: { name: fnName, content: toolResult }
+                            }
+                        }]
+                    });
+                } else {
+                    removeTypingIndicator();
+                    const jarvisResponse = part.text;
+                    addMessageToChat('J.A.R.V.I.S.', jarvisResponse, 'jarvis-message');
+                    speak(jarvisResponse);
+                    turnActive = false;
+                }
+            }
+        }
+
         async function handleUserMessage(userMessage) {
             if (!userMessage) return;
 
@@ -537,35 +734,7 @@
 
             try {
                 chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
-
-                // Call the Cloudflare Worker Proxy
-                const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
-                const requestBody = { url: targetUrl, payload: { contents: chatHistory } };
-
-                const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-
-                const result = await response.json();
-                removeTypingIndicator();
-
-                if (result.error) {
-                    throw new Error(result.error.message);
-                }
-
-                if (result.candidates?.[0]?.content?.parts?.[0]) {
-                    const jarvisResponse = result.candidates[0].content.parts[0].text;
-                    addMessageToChat('J.A.R.V.I.S.', jarvisResponse, 'jarvis-message');
-                    speak(jarvisResponse);
-                    chatHistory.push(result.candidates[0].content);
-                } else {
-                    throw new Error("Invalid response architecture.");
-                }
-
+                await executeGeminiTurn();
             } catch (error) {
                 console.error(error);
                 removeTypingIndicator();
@@ -646,29 +815,7 @@
                     ]
                 });
 
-                const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
-                const requestBody = { url: targetUrl, payload: { contents: chatHistory } };
-
-                const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-                const result = await response.json();
-                removeTypingIndicator();
-
-                if (result.error) throw new Error(result.error.message);
-
-                if (result.candidates?.[0]?.content?.parts?.[0]) {
-                    const jarvisResponse = result.candidates[0].content.parts[0].text;
-                    addMessageToChat('J.A.R.V.I.S.', jarvisResponse, 'jarvis-message');
-                    speak(jarvisResponse);
-                    chatHistory.push(result.candidates[0].content);
-                } else {
-                    throw new Error("Invalid response architecture.");
-                }
+                await executeGeminiTurn();
 
             } catch (error) {
                 console.error(error);
